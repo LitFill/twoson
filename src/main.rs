@@ -294,7 +294,7 @@ impl<'a> App<'a> {
                         }
                     } else if node.expanded {
                         if self.color {
-                            Span::styled("[-] ", Style::default().fg(Color::LightBlue))
+                            Span::styled("[-] ", Style::default().fg(Color::Blue))
                         } else {
                             Span::raw("[-] ")
                         }
@@ -554,7 +554,36 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
             AppMode::Editing => {
                 if let Event::Key(key) = event {
                     match key.code {
-                        KeyCode::Esc | KeyCode::Char('q') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Esc => {
+                            app.mode = AppMode::Normal;
+                            if let Some((path, _)) =
+                                app.visible_nodes.get(app.selected_index).cloned()
+                            {
+                                let new_text = app.textarea.lines().join("\n");
+                                let is_translated = !new_text.is_empty();
+
+                                if let Some(item) = app.translation_store.all_items.get_mut(&path) {
+                                    item.target_text = if is_translated {
+                                        Some(new_text.clone())
+                                    } else {
+                                        None
+                                    };
+                                }
+                                if let Some(node) = app.get_node_mut(&path) {
+                                    if let Some(trans_item) = &mut node.translation {
+                                        trans_item.target_text =
+                                            if is_translated { Some(new_text) } else { None };
+                                    }
+                                }
+                                App::update_node_translation_status(&mut app.tree);
+                            }
+                            app.textarea.set_block(
+                                Block::default()
+                                    .borders(Borders::ALL)
+                                    .title("Edit Terjemahan"),
+                            );
+                        }
+                        KeyCode::Char('q') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                             app.mode = AppMode::Normal;
                             if let Some((path, _)) =
                                 app.visible_nodes.get(app.selected_index).cloned()
