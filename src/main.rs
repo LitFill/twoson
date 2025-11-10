@@ -9,7 +9,7 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Text},
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use serde::Deserialize;
@@ -568,13 +568,14 @@ fn ui(f: &mut Frame, app: &mut App) {
             };
 
             let indentation = "  ".repeat(*depth);
-            let key_segment_span = Span::raw(node.key_segment.clone());
 
-            let mut content = Text::from(indentation);
-            content.extend(Text::from(status_span));
-            content.extend(Text::from(key_segment_span));
-            
-            ListItem::new(content)
+            let line = Line::from(vec![
+                Span::raw(indentation),
+                status_span,
+                Span::raw(node.key_segment.clone()),
+            ]);
+
+            ListItem::new(line)
         })
         .collect();
 
