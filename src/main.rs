@@ -454,13 +454,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 if is_leaf {
                                     app.mode = AppMode::Editing;
                                     let node = app.get_node(&path).unwrap(); // Re-borrow
-                                    let text = node
+                                    let source_text = node.translation.as_ref().map(|t| t.source_text.clone()).unwrap_or_default();
+                                    let target_text = node
                                         .translation
                                         .as_ref()
                                         .and_then(|t| t.target_text.clone())
                                         .unwrap_or_default();
                                     app.textarea =
-                                        TextArea::new(text.lines().map(String::from).collect());
+                                        TextArea::new(target_text.lines().map(String::from).collect());
+                                    app.textarea.set_placeholder(source_text);
                                     app.textarea.set_block(
                                         Block::default()
                                             .borders(Borders::ALL)
