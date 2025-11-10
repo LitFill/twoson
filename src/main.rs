@@ -71,6 +71,7 @@ pub struct App<'a> {
     status_message: Option<(String, Instant)>,
     clipboard: Box<dyn Clipboard>,
     color: bool,
+    scrolloff: usize,
 }
 
 impl<'a> App<'a> {
@@ -96,6 +97,7 @@ impl<'a> App<'a> {
             status_message: None,
             clipboard,
             color,
+            scrolloff: 7,
         };
         app.textarea.set_block(
             Block::default()
@@ -340,6 +342,25 @@ impl<'a> App<'a> {
 
         let mut list_state = ratatui::widgets::ListState::default();
         list_state.select(Some(self.selected_index));
+
+        let height = area.height as usize;
+        let scrolloff = self.scrolloff;
+        let num_items = self.visible_nodes.len();
+
+        let mut offset = list_state.offset();
+
+        // Adjust offset if selected item is too far up
+        if self.selected_index < offset + scrolloff {
+            offset = self.selected_index.saturating_sub(scrolloff);
+        }
+        // Adjust offset if selected item is too far down
+        else if self.selected_index >= offset + height.saturating_sub(scrolloff) {
+            offset = self.selected_index.saturating_sub(height.saturating_sub(scrolloff).saturating_sub(1));
+        }
+
+        // Ensure offset does not exceed the maximum possible offset
+        let max_offset = num_items.saturating_sub(height);
+        *list_state.offset_mut() = offset.min(max_offset);
 
         f.render_stateful_widget(items_list, area, &mut list_state);
     }
