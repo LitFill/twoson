@@ -1,5 +1,4 @@
-use arboard::Clipboard;
-use clap::Parser;
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -8,109 +7,89 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use serde::Deserialize;
-use serde_json;
 use std::{
-    collections::HashMap,
     error::Error,
-    fs::File,
-    io::{self, BufReader},
+    io::{self},
     path::PathBuf,
     time::Instant,
 };
 use tui_textarea::TextArea;
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    /// File sumber JSON yang akan diterjemahkan
-    source_file: PathBuf,
+mod clipboard;
+mod translation_data;
 
-    /// File output untuk menyimpan hasil terjemahan.
-    /// Jika tidak disediakan, akan menggunakan nama file sumber dengan prefix bahasa (misal: id_source.json)
-    #[arg(short, long)]
-    out: Option<PathBuf>,
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub struct Cli {
+    #[clap(short, long, value_parser)]
+    pub source_file: PathBuf,
+    #[clap(short, long, value_parser)]
+    pub out: Option<PathBuf>,
 }
 
-#[derive(Clone, Deserialize)]
-#[serde(untagged)]
-enum JsonValue {
-    String(String),
-    Object(HashMap<String, JsonValue>),
-}
-
-type JsonData = HashMap<String, JsonValue>;
-
-#[derive(Clone, Debug)]
-struct TranslationItem {
-    key: String,
-    source_text: String,
-    target_text: Option<String>,
-}
-
-impl TranslationItem {
-    fn is_translated(&self) -> bool {
-        self.target_text.is_some()
-    }
-}
-
-#[derive(Clone, Debug)]
-struct TreeNode {
-    key_segment: String,
-    full_path: String,
-    translation: Option<TranslationItem>,
-    children: Vec<TreeNode>,
-    expanded: bool,
-    fully_translated: bool,
+#[derive(Debug, Clone)]
+pub struct TreeNode {
+    pub key_segment: String,
+    pub full_path: String,
+    pub translation: Option<TranslationItem>,
+    pub children: Vec<TreeNode>,
+    pub expanded: bool,
+    pub fully_translated: bool,
 }
 
 impl TreeNode {
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
 }
 
-enum AppMode {
+#[derive(Debug, PartialEq, Eq)]
+pub enum AppMode {
     Normal,
     Editing,
 }
 
-struct App<'a> {
+use crate::clipboard::{Clipboard, WaylandClipboard};
+use crate::translation_data::{TranslationItem, TranslationStore};
+
+pub struct App<'a> {
+
     tree: Vec<TreeNode>,
     visible_nodes: Vec<(String, usize)>, // (full_path, depth)
     selected_index: usize,
     textarea: TextArea<'a>,
-    all_items: HashMap<String, TranslationItem>,
+    translation_store: TranslationStore,
     mode: AppMode,
     output_path: PathBuf,
     status_message: Option<(String, Instant)>,
-    clipboard: Clipboard,
+    clipboard: Box<dyn Clipboard>,
 }
 
 impl<'a> App<'a> {
     fn new(items: Vec<TranslationItem>, output_path: PathBuf) -> Result<App<'a>, Box<dyn Error>> {
-        let all_items = items
-            .iter()
-            .map(|item| (item.key.clone(), item.clone()))
-            .collect();
-        let mut tree = App::build_tree(items);
+        let translation_store = TranslationStore::new(items);
+        let mut tree = App::build_tree(translation_store.all_items.values().cloned().collect());
         App::update_node_translation_status(&mut tree);
+
+        let clipboard: Box<dyn Clipboard> = Box::new(WaylandClipboard);
 
         let mut app = App {
             tree,
             visible_nodes: Vec::new(),
             selected_index: 0,
             textarea: TextArea::default(),
-            all_items,
+            translation_store,
             mode: AppMode::Normal,
             output_path,
             status_message: None,
-            clipboard: Clipboard::new()?,
+            clipboard,
         };
         app.textarea.set_block(
             Block::default()
@@ -122,45 +101,7 @@ impl<'a> App<'a> {
     }
 
     fn save_translations(&self) -> Result<(), Box<dyn Error>> {
-        let json_data = self.unflatten_to_json_value();
-        let file = File::create(&self.output_path)?;
-        serde_json::to_writer_pretty(file, &json_data)?;
-        Ok(())
-    }
-
-    fn unflatten_to_json_value(&self) -> serde_json::Value {
-        let mut root = serde_json::Value::Object(serde_json::Map::new());
-
-        let mut sorted_keys: Vec<_> = self.all_items.keys().cloned().collect();
-        sorted_keys.sort();
-
-        for key in sorted_keys {
-            if let Some(item) = self.all_items.get(&key) {
-                if let Some(text) = &item.target_text {
-                    let mut current = &mut root;
-                    let segments: Vec<&str> = key.split('.').collect();
-                    for (i, segment) in segments.iter().enumerate() {
-                        if i == segments.len() - 1 {
-                            if let Some(obj) = current.as_object_mut() {
-                                obj.insert(
-                                    segment.to_string(),
-                                    serde_json::Value::String(text.clone()),
-                                );
-                            }
-                        } else {
-                            current = current
-                                .as_object_mut()
-                                .unwrap()
-                                .entry(segment.to_string())
-                                .or_insert_with(|| {
-                                    serde_json::Value::Object(serde_json::Map::new())
-                                });
-                        }
-                    }
-                }
-            }
-        }
-        root
+        self.translation_store.save_translations(&self.output_path)
     }
 
     fn build_tree(items: Vec<TranslationItem>) -> Vec<TreeNode> {
@@ -181,25 +122,27 @@ impl<'a> App<'a> {
                     format!("{}.{}", path_so_far, segment)
                 };
 
-                let position = current_level_nodes
-                    .iter()
-                    .position(|n| n.key_segment == *segment);
-
-                let node_index = match position {
-                    Some(pos) => pos,
-                    None => {
-                        let new_node = TreeNode {
-                            key_segment: segment.to_string(),
-                            full_path: path_so_far.clone(),
-                            translation: None, // Will be set if it's a leaf
-                            children: Vec::new(),
-                            expanded: false, // Start all nodes collapsed
-                            fully_translated: false,
-                        };
-                        current_level_nodes.push(new_node);
-                        current_level_nodes.len() - 1
+                // Helper closure to find or create a child node
+                let find_or_create_node = |nodes: &mut Vec<TreeNode>, segment: &str, full_path: String| {
+                    let position = nodes.iter().position(|n| n.key_segment == segment);
+                    match position {
+                        Some(pos) => pos,
+                        None => {
+                            let new_node = TreeNode {
+                                key_segment: segment.to_string(),
+                                full_path,
+                                translation: None,
+                                children: Vec::new(),
+                                expanded: false,
+                                fully_translated: false,
+                            };
+                            nodes.push(new_node);
+                            nodes.len() - 1
+                        }
                     }
                 };
+
+                let node_index = find_or_create_node(current_level_nodes, segment, path_so_far.clone());
 
                 if i == segments.len() - 1 {
                     current_level_nodes[node_index].translation = Some(item.clone());
@@ -302,68 +245,132 @@ impl<'a> App<'a> {
         }
         self.update_visible_nodes();
     }
+
+    fn render_key_list(&self, f: &mut Frame, area: Rect) {
+        let list_style = if matches!(self.mode, AppMode::Normal) {
+            Style::default()
+                .bg(Color::Cyan)
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED)
+        } else {
+            Style::default()
+        };
+
+        let items: Vec<ListItem> = self
+            .visible_nodes
+            .iter()
+            .map(|(path, depth)| {
+                let node = self.get_node(path).unwrap(); // Should exist
+                let is_leaf = node.is_leaf();
+
+                let status_span = if is_leaf {
+                    if node
+                        .translation
+                        .as_ref()
+                        .map_or(false, |t| t.is_translated())
+                    {
+                        Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                    } else {
+                        Span::styled("[ ]", Style::default().fg(Color::LightRed))
+                    }
+                } else {
+                    // It's a folder
+                    if node.fully_translated {
+                        Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                    } else if node.expanded {
+                        Span::styled("[-] ", Style::default().fg(Color::LightBlue))
+                    } else {
+                        Span::styled("[+] ", Style::default().fg(Color::LightCyan))
+                    }
+                };
+
+                let indentation = "  ".repeat(*depth);
+
+                let line = Line::from(vec![
+                    Span::raw(indentation),
+                    status_span,
+                    Span::raw(node.key_segment.clone()),
+                ]);
+
+                ListItem::new(line)
+            })
+            .collect();
+
+        let items_list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("Daftar Kunci"))
+            .highlight_style(list_style)
+            .highlight_symbol(">> ");
+
+        let mut list_state = ratatui::widgets::ListState::default();
+        list_state.select(Some(self.selected_index));
+
+        f.render_stateful_widget(items_list, area, &mut list_state);
+    }
+
+    fn render_source_text(&self, f: &mut Frame, area: Rect) {
+        let source_text = if let Some((path, _)) = self.visible_nodes.get(self.selected_index) {
+            if let Some(item) = self.translation_store.all_items.get(path) {
+                item.source_text.clone()
+            } else {
+                "Select a translatable key.".to_string()
+            }
+        } else {
+            String::new()
+        };
+        let source_paragraph = Paragraph::new(source_text)
+            .block(Block::default().borders(Borders::ALL).title("Teks Sumber"));
+        f.render_widget(source_paragraph, area);
+    }
+
+    fn render_editor(&self, f: &mut Frame, area: Rect) {
+        f.render_widget(&self.textarea, area);
+    }
+
+    fn render_status_message(&self, f: &mut Frame, area: Rect) {
+        if let Some((msg, _)) = &self.status_message {
+            let footer = Paragraph::new(msg.as_str()).style(Style::default().fg(Color::LightYellow));
+            f.render_widget(footer, area);
+        }
+    }
+} // End of impl App
+
+fn ui(f: &mut Frame, app: &mut App) {
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
+        .split(f.area());
+
+    let top_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+        .split(main_chunks[0]);
+
+    app.render_key_list(f, top_chunks[0]);
+
+    // Panel Kanan
+    let right_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(top_chunks[1]);
+
+    // Panel Kanan Atas: Teks Sumber
+    app.render_source_text(f, right_chunks[0]);
+
+    // Panel Kanan Bawah: Area Input
+    app.render_editor(f, right_chunks[1]);
+
+    // Footer untuk status message
+    app.render_status_message(f, main_chunks[1]);
 }
 
-fn load_translation_items(
-    source_path: &PathBuf,
-    output_path: Option<&PathBuf>,
-) -> Result<Vec<TranslationItem>, Box<dyn Error>> {
-    // Load source file
-    let source_file = File::open(source_path)?;
-    let reader = BufReader::new(source_file);
-    let source_data: JsonData = serde_json::from_reader(reader)?;
-
-    // Load target file if provided
-    let mut target_data: JsonData = HashMap::new();
-    if let Some(path) = output_path {
-        if path.exists() {
-            let target_file = File::open(path)?;
-            let target_reader = BufReader::new(target_file);
-            target_data = serde_json::from_reader(target_reader)?;
-        }
-    }
-
-    // Helper function to flatten the nested JsonData
-    fn flatten_json(data: &JsonData) -> HashMap<String, String> {
-        let mut flat_map = HashMap::new();
-        for (key, value) in data {
-            flatten_recursive(key, value, &mut flat_map);
-        }
-        flat_map
-    }
-
-    fn flatten_recursive(prefix: &str, value: &JsonValue, flat_map: &mut HashMap<String, String>) {
-        match value {
-            JsonValue::String(s) => {
-                flat_map.insert(prefix.to_string(), s.clone());
-            }
-            JsonValue::Object(obj) => {
-                for (key, inner_value) in obj {
-                    let new_prefix = format!("{}.{}", prefix, key);
-                    flatten_recursive(&new_prefix, inner_value, flat_map);
-                }
-            }
-        }
-    }
-
-    let flat_source_data = flatten_json(&source_data);
-    let flat_target_data = flatten_json(&target_data);
-
-    // Create TranslationItems
-    let mut items: Vec<TranslationItem> = Vec::new();
-    for (key, source_text) in flat_source_data {
-        let target_text = flat_target_data.get(&key).cloned();
-        items.push(TranslationItem {
-            key,
-            source_text,
-            target_text,
-        });
-    }
-
-    // Sort items by key for consistent display
-    items.sort_by(|a, b| a.key.cmp(&b.key));
-
-    Ok(items)
+fn restore_terminal<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -377,17 +384,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // Load translation items from files
-    let items = match load_translation_items(&cli.source_file, cli.out.as_ref()) {
+    let items = match TranslationStore::load_from_files(&cli.source_file, cli.out.as_ref()) {
         Ok(items) => items,
         Err(e) => {
-            // Restore terminal before printing error
-            disable_raw_mode()?;
-            execute!(
-                terminal.backend_mut(),
-                LeaveAlternateScreen,
-                DisableMouseCapture
-            )?;
-            terminal.show_cursor()?;
+            restore_terminal(&mut terminal)?;
             eprintln!("Error loading translation files: {}", e);
             return Err(e);
         }
@@ -403,14 +403,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut app = match App::new(items, output_path) {
         Ok(app) => app,
         Err(e) => {
-            // Restore terminal before printing error
-            disable_raw_mode()?;
-            execute!(
-                terminal.backend_mut(),
-                LeaveAlternateScreen,
-                DisableMouseCapture
-            )?;
-            terminal.show_cursor()?;
+            restore_terminal(&mut terminal)?;
             eprintln!("Error initializing app: {}", e);
             return Err(e);
         }
@@ -418,13 +411,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let res = run_app(&mut terminal, &mut app);
 
     // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    restore_terminal(&mut terminal)?;
 
     if let Err(err) = res {
         println!("Error in TUI: {:?}", err)
@@ -433,7 +420,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
+fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, app))?;
 
@@ -461,35 +448,45 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         }
                         KeyCode::Char('y') => {
                             if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
-                                if let Some(item) = app.all_items.get(&path) {
-                                    if app.clipboard.set_text(item.source_text.clone()).is_ok() {
-                                        app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
-                                    } else {
-                                        app.status_message = Some(("Error copying to clipboard!".to_string(), Instant::now()));
+                                if let Some(item) = app.translation_store.all_items.get(&path) {
+                                    let text_to_copy = item.source_text.clone();
+                                    match app.clipboard.copy(&text_to_copy) {
+                                        Ok(_) => {
+                                            app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
+                                        },
+                                        Err(e) => {
+                                            app.status_message = Some((format!("Failed to copy to clipboard: {}", e), Instant::now()));
+                                        }
                                     }
                                 }
                             }
                         }
                         KeyCode::Char('p') => {
-                            match app.clipboard.get_text() {
+                            let mut pasted_text: Option<String> = None;
+                            let status_msg = match app.clipboard.paste() {
                                 Ok(text) => {
-                                    if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
-                                        if let Some(item) = app.all_items.get_mut(&path) {
-                                            item.target_text = Some(text.clone());
-                                        }
-                                        if let Some(node) = app.get_node_mut(&path) {
-                                            if let Some(trans_item) = &mut node.translation {
-                                                trans_item.target_text = Some(text);
-                                            }
-                                        }
-                                        App::update_node_translation_status(&mut app.tree);
-                                        app.status_message = Some(("Pasted from clipboard!".to_string(), Instant::now()));
-                                    }
+                                    pasted_text = Some(text);
+                                    "Pasted from clipboard!".to_string()
+                                },
+                                Err(e) => {
+                                    format!("Failed to paste from clipboard: {}", e)
                                 }
-                                Err(_) => {
-                                     app.status_message = Some(("Clipboard is empty or contains non-text data!".to_string(), Instant::now()));
+                            };
+
+                            if let Some(text) = pasted_text {
+                                if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
+                                    if let Some(item) = app.translation_store.all_items.get_mut(&path) {
+                                        item.target_text = Some(text.clone());
+                                    }
+                                    if let Some(node) = app.get_node_mut(&path) {
+                                        if let Some(trans_item) = &mut node.translation {
+                                            trans_item.target_text = Some(text);
+                                        }
+                                    }
+                                    App::update_node_translation_status(&mut app.tree);
                                 }
                             }
+                            app.status_message = Some((status_msg, Instant::now()));
                         }
                         KeyCode::Down | KeyCode::Char('j') => app.next(),
                         KeyCode::Up | KeyCode::Char('k') => app.previous(),
@@ -517,7 +514,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                         Block::default()
                                             .borders(Borders::ALL)
                                             .title("Edit Terjemahan (Tekan Esc untuk keluar)")
-                                            .style(Style::default().fg(Color::Yellow)),
+                                            .style(Style::default().fg(Color::LightYellow)),
                                     );
                                 }
                             }
@@ -529,7 +526,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             AppMode::Editing => {
                 if let Event::Key(key) = event {
                     match key.code {
-                        KeyCode::Esc => {
+                        KeyCode::Esc | KeyCode::Char('q') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                             app.mode = AppMode::Normal;
                             if let Some((path, _)) =
                                 app.visible_nodes.get(app.selected_index).cloned()
@@ -537,7 +534,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 let new_text = app.textarea.lines().join("\n");
                                 let is_translated = !new_text.is_empty();
 
-                                if let Some(item) = app.all_items.get_mut(&path) {
+                                if let Some(item) = app.translation_store.all_items.get_mut(&path) {
                                     item.target_text = if is_translated {
                                         Some(new_text.clone())
                                     } else {
@@ -568,102 +565,4 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
     }
 }
 
-fn ui(f: &mut Frame, app: &mut App) {
-    let main_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
-        .split(f.area());
 
-    let top_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
-        .split(main_chunks[0]);
-
-    // Panel Kiri: Daftar Kunci (Tree View)
-    let list_style = if matches!(app.mode, AppMode::Normal) {
-        Style::default()
-            .bg(Color::LightGreen)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    let items: Vec<ListItem> = app
-        .visible_nodes
-        .iter()
-        .map(|(path, depth)| {
-            let node = app.get_node(path).unwrap(); // Should exist
-            let is_leaf = node.is_leaf();
-
-            let status_span = if is_leaf {
-                if node
-                    .translation
-                    .as_ref()
-                    .map_or(false, |t| t.is_translated())
-                {
-                    Span::styled("[✓]", Style::default().fg(Color::Green))
-                } else {
-                    Span::styled("[ ]", Style::default().fg(Color::Gray))
-                }
-            } else {
-                // It's a folder
-                if node.fully_translated {
-                    Span::styled("[✓]", Style::default().fg(Color::Green))
-                } else if node.expanded {
-                    Span::styled("[-] ", Style::default().fg(Color::Blue))
-                } else {
-                    Span::styled("[+] ", Style::default().fg(Color::Blue))
-                }
-            };
-
-            let indentation = "  ".repeat(*depth);
-
-            let line = Line::from(vec![
-                Span::raw(indentation),
-                status_span,
-                Span::raw(node.key_segment.clone()),
-            ]);
-
-            ListItem::new(line)
-        })
-        .collect();
-
-    let items_list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Daftar Kunci"))
-        .highlight_style(list_style)
-        .highlight_symbol(">> ");
-
-    let mut list_state = ratatui::widgets::ListState::default();
-    list_state.select(Some(app.selected_index));
-
-    f.render_stateful_widget(items_list, top_chunks[0], &mut list_state);
-
-    // Panel Kanan
-    let right_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-        .split(top_chunks[1]);
-
-    // Panel Kanan Atas: Teks Sumber
-    let source_text = if let Some((path, _)) = app.visible_nodes.get(app.selected_index) {
-        if let Some(item) = app.all_items.get(path) {
-            item.source_text.clone()
-        } else {
-            "Select a translatable key.".to_string()
-        }
-    } else {
-        String::new()
-    };
-    let source_paragraph = Paragraph::new(source_text)
-        .block(Block::default().borders(Borders::ALL).title("Teks Sumber"));
-    f.render_widget(source_paragraph, right_chunks[0]);
-
-    // Panel Kanan Bawah: Area Input
-    f.render_widget(&app.textarea, right_chunks[1]);
-
-    // Footer untuk status message
-    if let Some((msg, _)) = &app.status_message {
-        let footer = Paragraph::new(msg.as_str()).style(Style::default().fg(Color::Yellow));
-        f.render_widget(footer, main_chunks[1]);
-    }
-}

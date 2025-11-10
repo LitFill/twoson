@@ -1,0 +1,355 @@
+{
+  "authentication": {
+    "error": "Authentication error",
+    "failed": "Authentication failed"
+  },
+  "bar": {
+    "widget-settings": {
+      "active-window": {
+        "colorize-icons": {
+          "description": "Apply theme colors to active window icon.",
+          "label": "Colorize Icons"
+        },
+        "hide-mode": {
+          "description": "Controls how the widget behaves when no window is active.",
+          "label": "Hiding mode"
+        },
+        "max-width": {
+          "description": "Sets the maximum horizontal size of the widget. The widget will shrink to fit shorter content.",
+          "label": "Maximum Width"
+        },
+        "scrolling-mode": {
+          "description": "Control when text scrolling is enabled for long window titles.",
+          "label": "Scrolling mode"
+        },
+        "show-app-icon": {
+          "description": "Display the application icon next to the window title.",
+          "label": "Show app icon"
+        },
+        "use-fixed-width": {
+          "description": "When enabled, the widget will always use the maximum width instead of dynamically adjusting to content.",
+          "label": "Use Fixed Width"
+        }
+      },
+      "audio-visualizer": {
+        "color-name": {
+          "description": "Select the color for the visualizer.",
+          "label": "Fill Color"
+        },
+        "hide-when-idle": {
+          "description": "When enabled, the visualizer is hidden unless a player is actively playing.",
+          "label": "Hide when no media is playing"
+        },
+        "width": {
+          "description": "Custom component width.",
+          "label": "Width"
+        }
+      },
+      "battery": {
+        "display-mode": {
+          "description": "Choose how you'd like this value to appear.",
+          "label": "Display mode"
+        },
+        "low-battery-threshold": {
+          "description": "Show a warning when battery falls below this percentage.",
+          "label": "Low battery warning threshold"
+        }
+      },
+      "brightness": {
+        "display-mode": {
+          "description": "Choose how you'd like this value to appear.",
+          "label": "Display mode"
+        }
+      },
+      "clock": {
+        "clock-display": {
+          "description": "Customize your clock's display by adding tokens from the list below. To use the 12-hour format, you must include the 'AP' token.",
+          "label": "Clock display"
+        },
+        "custom-font": {
+          "description": "Select a custom font for the clock display.",
+          "label": "Custom font",
+          "placeholder": "Select custom font...",
+          "search-placeholder": "Search fonts..."
+        },
+        "horizontal-bar": {
+          "description": "Tip: Use \\n to create a line break.",
+          "label": "Horizontal bar"
+        },
+        "preview": "Preview",
+        "use-custom-font": {
+          "description": "Override the default font selection with a custom font for the clock.",
+          "label": "Use custom font"
+        },
+        "use-monospaced-font": {
+          "description": "When enabled, the clock will use the monospaced font.",
+          "label": "Use monospaced font"
+        },
+        "use-primary-color": {
+          "description": "When enabled, this applies the primary color for emphasis.",
+          "label": "Use primary color"
+        },
+        "vertical-bar": {
+          "description": "Use a space to separate each part onto a new line.",
+          "label": "Vertical bar"
+        }
+      },
+      "control-center": {
+        "browse-file": "Browse File",
+        "browse-library": "Browse Library",
+        "icon": {
+          "description": "Select an icon from the library or a custom file.",
+          "label": "Icon"
+        },
+        "select-custom-icon": "Select a custom icon",
+        "use-distro-logo": {
+          "description": "Use your distribution's logo instead of a custom icon.",
+          "label": "Use distro logo instead of icon"
+        }
+      },
+      "custom-button": {
+        "browse": "Browse",
+        "collapse-condition": {
+          "description": "If the output text matches this value, the button will collapse.",
+          "label": "Collapse condition"
+        },
+        "display-command-output": {
+          "description": "Enter a command to run at a regular interval. The first line of its output will be displayed as text.",
+          "label": "Display Command Output",
+          "stream-description": "Enter a command to run continuously."
+        },
+        "dynamic-text": "Dynamic text",
+        "icon": {
+          "description": "Select an icon from the library.",
+          "label": "Icon"
+        },
+        "left-click": {
+          "description": "Command to execute when the button is left-clicked.",
+          "label": "Left click"
+        },
+        "middle-click": {
+          "description": "Command to execute when the button is middle-clicked.",
+          "label": "Middle click"
+        },
+        "parse-json": {
+          "description": "Parse the command output as a JSON object to dynamically set text and icon.",
+          "label": "Parse output as JSON"
+        },
+        "refresh-interval": {
+          "description": "Interval in milliseconds.",
+          "label": "Refresh interval"
+        },
+        "right-click": {
+          "description": "Command to execute when the button is right-clicked.",
+          "label": "Right click"
+        },
+        "text-stream": {
+          "description": "Streamed lines from the command will be displayed as text on the button.",
+          "label": "Stream"
+        }
+      },
+      "dialog": {
+        "apply": "Apply",
+        "cancel": "Cancel"
+      },
+      "keyboard-layout": {
+        "display-mode": {
+          "description": "Choose how you'd like this value to appear.",
+          "label": "Display mode"
+        }
+      },
+      "lock-keys": {
+        "browse": "Browse",
+        "show-caps-lock": {
+          "description": "Display caps lock status.",
+          "label": "Caps Lock"
+        },
+        "show-num-lock": {
+          "description": "Display num lock status.",
+          "label": "Num Lock"
+        },
+        "show-scroll-lock": {
+          "description": "Display scroll lock status.",
+          "label": "Scroll Lock"
+        }
+      },
+      "media-mini": {
+        "hide-mode": {
+          "description": "Controls how the widget behaves when no media is playing.",
+          "label": "Hiding mode"
+        },
+        "max-width": {
+          "description": "Sets the maximum horizontal size of the widget. The widget will shrink to fit shorter content.",
+          "label": "Maximum Width"
+        },
+        "no-active-player": "No active player",
+        "scrolling-mode": {
+          "description": "Control when text scrolling is enabled for long track titles.",
+          "label": "Scrolling mode"
+        },
+        "show-album-art": {
+          "description": "Display the album artwork for the currently playing track.",
+          "label": "Show album art"
+        },
+        "show-visualizer": {
+          "description": "Display an audio visualizer when music is playing.",
+          "label": "Show visualizer"
+        },
+        "use-fixed-width": {
+          "description": "When enabled, the widget will always use the maximum width instead of dynamically adjusting to content.",
+          "label": "Use Fixed Width"
+        },
+        "visualizer-type": {
+          "description": "Choose the style of audio visualizer to display.",
+          "label": "Visualizer type"
+        }
+      },
+      "microphone": {
+        "display-mode": {
+          "description": "Choose how you'd like this value to appear.",
+          "label": "Display mode"
+        }
+      },
+      "notification-history": {
+        "hide-badge-when-zero": {
+          "description": "Hide the notification badge when there are no unread notifications.",
+          "label": "Hide badge when zero"
+        },
+        "show-unread-badge": {
+          "description": "Display a badge showing the number of unread notifications.",
+          "label": "Show unread badge"
+        }
+      },
+      "section-editor": {
+        "placeholder": "Select a widget to add...",
+        "search-placeholder": "Search widget..."
+      },
+      "spacer": {
+        "width": {
+          "description": "Spacing width in pixels",
+          "label": "Width"
+        }
+      },
+      "system-monitor": {
+        "cpu-temperature": {
+          "description": "Show CPU temperature readings if available.",
+          "label": "CPU temperature"
+        },
+        "cpu-usage": {
+          "description": "Display current CPU usage percentage.",
+          "label": "CPU usage"
+        },
+        "memory-percentage": {
+          "description": "Show memory usage as a percentage instead of absolute values.",
+          "label": "Memory as percentage"
+        },
+        "memory-usage": {
+          "description": "Display current RAM usage information.",
+          "label": "Memory usage"
+        },
+        "network-traffic": {
+          "description": "Display network upload and download speeds.",
+          "label": "Network traffic"
+        },
+        "storage-usage": {
+          "description": "Show disk space usage information.",
+          "label": "Storage usage"
+        }
+      },
+      "taskbar": {
+        "colorize-icons": {
+          "description": "Apply theme colors to taskbar icons.",
+          "label": "Colorize Icons"
+        },
+        "hide-mode": {
+          "description": "Controls how the widget behaves when there are no matching windows.",
+          "label": "Hiding mode"
+        },
+        "only-active-workspaces": {
+          "description": "Show only apps from active workspaces.",
+          "label": "Only from active workspaces"
+        },
+        "only-same-output": {
+          "description": "Show only apps from the output where the bar is located.",
+          "label": "Only from same output"
+        }
+      },
+      "tray": {
+        "colorize-icons": {
+          "description": "Apply theme colors to tray icons.",
+          "label": "Colorize Icons"
+        },
+        "drawer-enabled": {
+          "description": "When enabled, unpinned tray items are shown in a drawer panel. When disabled, all tray items are shown inline.",
+          "label": "Enable Drawer"
+        }
+      },
+      "volume": {
+        "display-mode": {
+          "description": "Choose how you'd like this value to appear.",
+          "label": "Display mode"
+        }
+      },
+      "workspace": {
+        "character-count": {
+          "description": "Number of characters to display from workspace names (1-10).",
+          "label": "Character count"
+        },
+        "hide-unoccupied": {
+          "description": "Don't display workspaces without windows.",
+          "label": "Hide unoccupied"
+        },
+        "label-mode": {
+          "description": "Choose how workspace labels are displayed.",
+          "label": "Label Mode"
+        }
+      }
+    }
+  },
+  "battery": {
+    "charging": "Charging.",
+    "charging-rate": "Charging rate: {rate} W.",
+    "discharging": "Discharging.",
+    "discharging-rate": "Discharging rate: {rate} W.",
+    "health": "Health: {percent}%",
+    "idle": "Idle.",
+    "no-battery-detected": "No battery detected.",
+    "panel": {
+      "balanced": "Balanced ({percent}%)",
+      "disabled": "Battery manager disabled",
+      "full": "Full capacity ({percent}%)",
+      "lifespan": "Extended lifespan ({percent}%)",
+      "title": "Charge threshold"
+    },
+    "plugged-in": "Plugged in.",
+    "time-left": "Time left: {time}.",
+    "time-until-full": "Time until full: {time}."
+  },
+  "bluetooth": {
+    "panel": {
+      "available-devices": "Available devices",
+      "blocked": "Blocked",
+      "connect": "Connect",
+      "connected-devices": "Connected devices",
+      "disabled": "Bluetooth is disabled",
+      "disconnect": "Disconnect",
+      "enable-message": "Enable Bluetooth to see available devices.",
+      "known-devices": "Known devices",
+      "pairing": "Pairing...",
+      "pairing-mode": "Make sure your device is in pairing mode.",
+      "scanning": "Scanning for devices...",
+      "title": "Bluetooth"
+    }
+  },
+  "calendar": {
+    "panel": {
+      "week": "Week"
+    },
+    "weather": {
+      "loading": "Loading weather…"
+    }
+  },
+  "clock": {
+    "tooltip": "Open calendar"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "authentication": {
+    "error": "Kesalahan Otentikasi",
+    "failed": "Kesalahan Otentikasi"
+  },
+  "clock": {
+    "tooltip": "Buka Kalender"
+  }
+}
