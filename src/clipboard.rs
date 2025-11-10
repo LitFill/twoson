@@ -54,6 +54,7 @@ impl Clipboard for WaylandClipboard {
 }
 
 // A no-op clipboard for environments where no system clipboard is available or supported.
+#[allow(dead_code)]
 pub struct NoopClipboard;
 
 impl Clipboard for NoopClipboard {
