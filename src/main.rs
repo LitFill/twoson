@@ -1,4 +1,3 @@
-
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -62,7 +61,6 @@ use crate::clipboard::{Clipboard, WaylandClipboard};
 use crate::translation_data::{TranslationItem, TranslationStore};
 
 pub struct App<'a> {
-
     tree: Vec<TreeNode>,
     visible_nodes: Vec<(String, usize)>, // (full_path, depth)
     selected_index: usize,
@@ -76,7 +74,11 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    fn new(items: Vec<TranslationItem>, output_path: PathBuf, color: bool) -> Result<App<'a>, Box<dyn Error>> {
+    fn new(
+        items: Vec<TranslationItem>,
+        output_path: PathBuf,
+        color: bool,
+    ) -> Result<App<'a>, Box<dyn Error>> {
         let translation_store = TranslationStore::new(items);
         let mut tree = App::build_tree(translation_store.all_items.values().cloned().collect());
         App::update_node_translation_status(&mut tree);
@@ -127,26 +129,28 @@ impl<'a> App<'a> {
                 };
 
                 // Helper closure to find or create a child node
-                let find_or_create_node = |nodes: &mut Vec<TreeNode>, segment: &str, full_path: String| {
-                    let position = nodes.iter().position(|n| n.key_segment == segment);
-                    match position {
-                        Some(pos) => pos,
-                        None => {
-                            let new_node = TreeNode {
-                                key_segment: segment.to_string(),
-                                full_path,
-                                translation: None,
-                                children: Vec::new(),
-                                expanded: false,
-                                fully_translated: false,
-                            };
-                            nodes.push(new_node);
-                            nodes.len() - 1
+                let find_or_create_node =
+                    |nodes: &mut Vec<TreeNode>, segment: &str, full_path: String| {
+                        let position = nodes.iter().position(|n| n.key_segment == segment);
+                        match position {
+                            Some(pos) => pos,
+                            None => {
+                                let new_node = TreeNode {
+                                    key_segment: segment.to_string(),
+                                    full_path,
+                                    translation: None,
+                                    children: Vec::new(),
+                                    expanded: false,
+                                    fully_translated: false,
+                                };
+                                nodes.push(new_node);
+                                nodes.len() - 1
+                            }
                         }
-                    }
-                };
+                    };
 
-                let node_index = find_or_create_node(current_level_nodes, segment, path_so_far.clone());
+                let node_index =
+                    find_or_create_node(current_level_nodes, segment, path_so_far.clone());
 
                 if i == segments.len() - 1 {
                     current_level_nodes[node_index].translation = Some(item.clone());
@@ -273,7 +277,12 @@ impl<'a> App<'a> {
                         .map_or(false, |t| t.is_translated())
                     {
                         if self.color {
-                            Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                            Span::styled(
+                                "[✓]",
+                                Style::default()
+                                    .fg(Color::Green)
+                                    .add_modifier(Modifier::BOLD),
+                            )
                         } else {
                             Span::raw("[✓]")
                         }
@@ -288,7 +297,12 @@ impl<'a> App<'a> {
                     // It's a folder
                     if node.fully_translated {
                         if self.color {
-                            Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                            Span::styled(
+                                "[✓]",
+                                Style::default()
+                                    .fg(Color::Green)
+                                    .add_modifier(Modifier::BOLD),
+                            )
                         } else {
                             Span::raw("[✓]")
                         }
@@ -331,22 +345,21 @@ impl<'a> App<'a> {
     }
 
     fn render_source_text(&self, f: &mut Frame, area: Rect) {
-        let (source_text, target_display_text) = if let Some((path, _)) = self.visible_nodes.get(self.selected_index) {
-            if let Some(item) = self.translation_store.all_items.get(path) {
-                (item.source_text.clone(), item.get_display_text())
+        let (source_text, target_display_text) =
+            if let Some((path, _)) = self.visible_nodes.get(self.selected_index) {
+                if let Some(item) = self.translation_store.all_items.get(path) {
+                    (item.source_text.clone(), item.get_display_text())
+                } else {
+                    ("Select a translatable key.".to_string(), String::new())
+                }
             } else {
-                ("Select a translatable key.".to_string(), String::new())
-            }
-        } else {
-            (String::new(), String::new())
-        };
+                (String::new(), String::new())
+            };
 
-        let mut text_lines = vec![
-            Line::from(vec![
-                Span::styled("Source: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(source_text),
-            ]),
-        ];
+        let mut text_lines = vec![Line::from(vec![
+            Span::styled("Source: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(source_text),
+        ])];
 
         if !target_display_text.is_empty() {
             text_lines.push(Line::from(vec![
@@ -354,7 +367,6 @@ impl<'a> App<'a> {
                 Span::raw(target_display_text),
             ]));
         }
-
 
         let source_paragraph = Paragraph::new(text_lines)
             .block(Block::default().borders(Borders::ALL).title("Teks Sumber"));
@@ -406,7 +418,9 @@ fn ui(f: &mut Frame, app: &mut App) {
     app.render_status_message(f, main_chunks[1]);
 }
 
-fn restore_terminal<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
+fn restore_terminal<B: Backend + std::io::Write>(
+    terminal: &mut Terminal<B>,
+) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -464,7 +478,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
+fn run_app<B: Backend + std::io::Write>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, app))?;
 
@@ -491,15 +508,23 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             }
                         }
                         KeyCode::Char('y') => {
-                            if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
+                            if let Some((path, _)) =
+                                app.visible_nodes.get(app.selected_index).cloned()
+                            {
                                 if let Some(item) = app.translation_store.all_items.get(&path) {
                                     let text_to_copy = item.source_text.clone();
                                     match app.clipboard.copy(&text_to_copy) {
                                         Ok(_) => {
-                                            app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
-                                        },
+                                            app.status_message = Some((
+                                                "Copied to clipboard!".to_string(),
+                                                Instant::now(),
+                                            ));
+                                        }
                                         Err(e) => {
-                                            app.status_message = Some((format!("Failed to copy to clipboard: {}", e), Instant::now()));
+                                            app.status_message = Some((
+                                                format!("Failed to copy to clipboard: {}", e),
+                                                Instant::now(),
+                                            ));
                                         }
                                     }
                                 }
@@ -511,15 +536,19 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                 Ok(text) => {
                                     pasted_text = Some(text);
                                     "Pasted from clipboard!".to_string()
-                                },
+                                }
                                 Err(e) => {
                                     format!("Failed to paste from clipboard: {}", e)
                                 }
                             };
 
                             if let Some(text) = pasted_text {
-                                if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
-                                    if let Some(item) = app.translation_store.all_items.get_mut(&path) {
+                                if let Some((path, _)) =
+                                    app.visible_nodes.get(app.selected_index).cloned()
+                                {
+                                    if let Some(item) =
+                                        app.translation_store.all_items.get_mut(&path)
+                                    {
                                         item.target_text = Some(text.clone());
                                     }
                                     if let Some(node) = app.get_node_mut(&path) {
@@ -545,14 +574,19 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                 if is_leaf {
                                     app.mode = AppMode::Editing;
                                     let node = app.get_node(&path).unwrap(); // Re-borrow
-                                    let source_text = node.translation.as_ref().map(|t| t.source_text.clone()).unwrap_or_default();
+                                    let source_text = node
+                                        .translation
+                                        .as_ref()
+                                        .map(|t| t.source_text.clone())
+                                        .unwrap_or_default();
                                     let target_text = node
                                         .translation
                                         .as_ref()
                                         .and_then(|t| t.target_text.clone())
                                         .unwrap_or_default();
-                                    app.textarea =
-                                        TextArea::new(target_text.lines().map(String::from).collect());
+                                    app.textarea = TextArea::new(
+                                        target_text.lines().map(String::from).collect(),
+                                    );
                                     app.textarea.set_placeholder_text(source_text);
                                     app.textarea.set_block(
                                         Block::default()
@@ -599,7 +633,9 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                     .title("Edit Terjemahan"),
                             );
                         }
-                        KeyCode::Char('q') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        KeyCode::Char('q')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             app.mode = AppMode::Normal;
                             if let Some((path, _)) =
                                 app.visible_nodes.get(app.selected_index).cloned()
@@ -637,5 +673,3 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
         }
     }
 }
-
-

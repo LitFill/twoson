@@ -18,7 +18,8 @@ impl Clipboard for WaylandClipboard {
             .spawn()
             .map_err(|e| format!("Failed to spawn wl-copy: {}", e))?;
 
-        let status = child.wait()
+        let status = child
+            .wait()
             .map_err(|e| format!("Failed to wait for wl-copy: {}", e))?;
 
         if status.success() {
@@ -26,9 +27,16 @@ impl Clipboard for WaylandClipboard {
         } else {
             let stderr = child.stderr.take().map_or_else(
                 || "(No stderr)".to_string(),
-                |e| std::io::read_to_string(e).unwrap_or_else(|_| "(Failed to read stderr)".to_string())
+                |e| {
+                    std::io::read_to_string(e)
+                        .unwrap_or_else(|_| "(Failed to read stderr)".to_string())
+                },
             );
-            Err(format!("wl-copy failed with status: {:?}, stderr: {}", status, stderr).into())
+            Err(format!(
+                "wl-copy failed with status: {:?}, stderr: {}",
+                status, stderr
+            )
+            .into())
         }
     }
 
@@ -40,7 +48,8 @@ impl Clipboard for WaylandClipboard {
             .spawn()
             .map_err(|e| format!("Failed to spawn wl-paste: {}", e))?;
 
-        let output = child.wait_with_output()
+        let output = child
+            .wait_with_output()
             .map_err(|e| format!("Failed to wait for wl-paste: {}", e))?;
 
         if output.status.success() {
@@ -48,7 +57,11 @@ impl Clipboard for WaylandClipboard {
                 .map_err(|e| format!("Failed to decode wl-paste output: {}", e).into())
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("wl-paste failed with status: {:?}, stderr: {}", output.status, stderr).into())
+            Err(format!(
+                "wl-paste failed with status: {:?}, stderr: {}",
+                output.status, stderr
+            )
+            .into())
         }
     }
 }
