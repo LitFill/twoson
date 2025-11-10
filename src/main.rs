@@ -89,10 +89,11 @@ struct App<'a> {
     mode: AppMode,
     output_path: PathBuf,
     status_message: Option<(String, Instant)>,
+    clipboard: Clipboard,
 }
 
 impl<'a> App<'a> {
-    fn new(items: Vec<TranslationItem>, output_path: PathBuf) -> App<'a> {
+    fn new(items: Vec<TranslationItem>, output_path: PathBuf) -> Result<App<'a>, Box<dyn Error>> {
         let all_items = items
             .iter()
             .map(|item| (item.key.clone(), item.clone()))
@@ -109,6 +110,7 @@ impl<'a> App<'a> {
             mode: AppMode::Normal,
             output_path,
             status_message: None,
+            clipboard: Clipboard::new()?,
         };
         app.textarea.set_block(
             Block::default()
@@ -116,7 +118,7 @@ impl<'a> App<'a> {
                 .title("Edit Terjemahan"),
         );
         app.update_visible_nodes();
-        app
+        Ok(app)
     }
 
     fn save_translations(&self) -> Result<(), Box<dyn Error>> {
@@ -398,7 +400,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         let new_file_name = format!("id_{}", file_name);
         source_path.with_file_name(new_file_name)
     });
-    let mut app = App::new(items, output_path);
+    let mut app = match App::new(items, output_path) {
+        Ok(app) => app,
+        Err(e) => {
+            // Restore terminal before printing error
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
+            eprintln!("Error initializing app: {}", e);
+            return Err(e);
+        }
+    };
     let res = run_app(&mut terminal, &mut app);
 
     // Restore terminal
@@ -446,21 +462,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         KeyCode::Char('y') => {
                             if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
                                 if let Some(item) = app.all_items.get(&path) {
-                                    if let Ok(mut clipboard) = Clipboard::new() {
-                                        if clipboard.set_text(item.source_text.clone()).is_ok() {
-                                            app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
-                                        } else {
-                                            app.status_message = Some(("Error copying to clipboard!".to_string(), Instant::now()));
-                                        }
+                                    if app.clipboard.set_text(item.source_text.clone()).is_ok() {
+                                        app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
                                     } else {
-                                        app.status_message = Some(("Error initializing clipboard!".to_string(), Instant::now()));
+                                        app.status_message = Some(("Error copying to clipboard!".to_string(), Instant::now()));
                                     }
                                 }
                             }
                         }
                         KeyCode::Char('p') => {
-                            if let Ok(mut clipboard) = Clipboard::new() {
-                                if let Ok(text) = clipboard.get_text() {
+                            match app.clipboard.get_text() {
+                                Ok(text) => {
                                     if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
                                         if let Some(item) = app.all_items.get_mut(&path) {
                                             item.target_text = Some(text.clone());
@@ -473,11 +485,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                         App::update_node_translation_status(&mut app.tree);
                                         app.status_message = Some(("Pasted from clipboard!".to_string(), Instant::now()));
                                     }
-                                } else {
-                                    app.status_message = Some(("Clipboard is empty or contains non-text data!".to_string(), Instant::now()));
                                 }
-                            } else {
-                                app.status_message = Some(("Error initializing clipboard!".to_string(), Instant::now()));
+                                Err(_) => {
+                                     app.status_message = Some(("Clipboard is empty or contains non-text data!".to_string(), Instant::now()));
+                                }
                             }
                         }
                         KeyCode::Down | KeyCode::Char('j') => app.next(),
