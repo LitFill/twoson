@@ -9,6 +9,7 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
+    text::{Span, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use serde::Deserialize;
@@ -545,29 +546,34 @@ fn ui(f: &mut Frame, app: &mut App) {
             let node = app.get_node(path).unwrap(); // Should exist
             let is_leaf = node.is_leaf();
 
-            let status_symbol = if is_leaf {
+            let status_span = if is_leaf {
                 if node
                     .translation
                     .as_ref()
                     .map_or(false, |t| t.is_translated())
                 {
-                    "[✓]"
+                    Span::styled("[✓]", Style::default().fg(Color::Green))
                 } else {
-                    "[ ]"
+                    Span::styled("[ ]", Style::default().fg(Color::Gray))
                 }
             } else {
                 // It's a folder
                 if node.fully_translated {
-                    "[✓]"
+                    Span::styled("[✓]", Style::default().fg(Color::Green))
                 } else if node.expanded {
-                    "[-] "
+                    Span::styled("[-] ", Style::default().fg(Color::Blue))
                 } else {
-                    "[+] "
+                    Span::styled("[+] ", Style::default().fg(Color::Blue))
                 }
             };
 
             let indentation = "  ".repeat(*depth);
-            let content = format!("{}{}{}", indentation, status_symbol, node.key_segment);
+            let key_segment_span = Span::raw(node.key_segment.clone());
+
+            let mut content = Text::from(indentation);
+            content.extend(Text::from(status_span));
+            content.extend(Text::from(key_segment_span));
+            
             ListItem::new(content)
         })
         .collect();
