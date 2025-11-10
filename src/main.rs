@@ -462,7 +462,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                         .unwrap_or_default();
                                     app.textarea =
                                         TextArea::new(target_text.lines().map(String::from).collect());
-                                    app.textarea.set_placeholder(source_text);
+                                    app.textarea.set_placeholder_text(source_text);
                                     app.textarea.set_block(
                                         Block::default()
                                             .borders(Borders::ALL)
