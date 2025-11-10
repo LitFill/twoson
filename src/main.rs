@@ -1,3 +1,4 @@
+use arboard::Clipboard;
 use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -88,7 +89,6 @@ struct App<'a> {
     mode: AppMode,
     output_path: PathBuf,
     status_message: Option<(String, Instant)>,
-    clipboard: Option<String>,
 }
 
 impl<'a> App<'a> {
@@ -109,7 +109,6 @@ impl<'a> App<'a> {
             mode: AppMode::Normal,
             output_path,
             status_message: None,
-            clipboard: None,
         };
         app.textarea.set_block(
             Block::default()
@@ -447,27 +446,38 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         KeyCode::Char('y') => {
                             if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
                                 if let Some(item) = app.all_items.get(&path) {
-                                    app.clipboard = Some(item.source_text.clone());
-                                    app.status_message = Some(("Source text copied!".to_string(), Instant::now()));
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        if clipboard.set_text(item.source_text.clone()).is_ok() {
+                                            app.status_message = Some(("Copied to clipboard!".to_string(), Instant::now()));
+                                        } else {
+                                            app.status_message = Some(("Error copying to clipboard!".to_string(), Instant::now()));
+                                        }
+                                    } else {
+                                        app.status_message = Some(("Error initializing clipboard!".to_string(), Instant::now()));
+                                    }
                                 }
                             }
                         }
                         KeyCode::Char('p') => {
-                            if let Some(copied_text) = app.clipboard.clone() {
-                                if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
-                                    if let Some(item) = app.all_items.get_mut(&path) {
-                                        item.target_text = Some(copied_text.clone());
-                                    }
-                                    if let Some(node) = app.get_node_mut(&path) {
-                                        if let Some(trans_item) = &mut node.translation {
-                                            trans_item.target_text = Some(copied_text);
+                            if let Ok(mut clipboard) = Clipboard::new() {
+                                if let Ok(text) = clipboard.get_text() {
+                                    if let Some((path, _)) = app.visible_nodes.get(app.selected_index).cloned() {
+                                        if let Some(item) = app.all_items.get_mut(&path) {
+                                            item.target_text = Some(text.clone());
                                         }
+                                        if let Some(node) = app.get_node_mut(&path) {
+                                            if let Some(trans_item) = &mut node.translation {
+                                                trans_item.target_text = Some(text);
+                                            }
+                                        }
+                                        App::update_node_translation_status(&mut app.tree);
+                                        app.status_message = Some(("Pasted from clipboard!".to_string(), Instant::now()));
                                     }
-                                    App::update_node_translation_status(&mut app.tree);
-                                    app.status_message = Some(("Text pasted!".to_string(), Instant::now()));
+                                } else {
+                                    app.status_message = Some(("Clipboard is empty or contains non-text data!".to_string(), Instant::now()));
                                 }
                             } else {
-                                app.status_message = Some(("Clipboard is empty!".to_string(), Instant::now()));
+                                app.status_message = Some(("Error initializing clipboard!".to_string(), Instant::now()));
                             }
                         }
                         KeyCode::Down | KeyCode::Char('j') => app.next(),
