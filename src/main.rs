@@ -331,16 +331,32 @@ impl<'a> App<'a> {
     }
 
     fn render_source_text(&self, f: &mut Frame, area: Rect) {
-        let source_text = if let Some((path, _)) = self.visible_nodes.get(self.selected_index) {
+        let (source_text, target_display_text) = if let Some((path, _)) = self.visible_nodes.get(self.selected_index) {
             if let Some(item) = self.translation_store.all_items.get(path) {
-                item.source_text.clone()
+                (item.source_text.clone(), item.get_display_text())
             } else {
-                "Select a translatable key.".to_string()
+                ("Select a translatable key.".to_string(), String::new())
             }
         } else {
-            String::new()
+            (String::new(), String::new())
         };
-        let source_paragraph = Paragraph::new(source_text)
+
+        let mut text_lines = vec![
+            Line::from(vec![
+                Span::styled("Source: ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(source_text),
+            ]),
+        ];
+
+        if !target_display_text.is_empty() {
+            text_lines.push(Line::from(vec![
+                Span::styled("Target: ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(target_display_text),
+            ]));
+        }
+
+
+        let source_paragraph = Paragraph::new(text_lines)
             .block(Block::default().borders(Borders::ALL).title("Teks Sumber"));
         f.render_widget(source_paragraph, area);
     }

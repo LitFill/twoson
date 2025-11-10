@@ -25,6 +25,13 @@ impl TranslationItem {
     pub fn is_translated(&self) -> bool {
         self.target_text.is_some()
     }
+
+    pub fn get_display_text(&self) -> String {
+        match &self.target_text {
+            Some(text) => text.clone(),
+            None => format!("[UNTRANSLATED] {}", self.source_text),
+        }
+    }
 }
 
 pub struct TranslationStore {
