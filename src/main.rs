@@ -32,6 +32,8 @@ pub struct Cli {
     pub source_file: PathBuf,
     #[clap(short, long, value_parser)]
     pub out: Option<PathBuf>,
+    #[clap(long, action = clap::ArgAction::SetTrue, default_value_t = true)]
+    pub color: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -70,10 +72,11 @@ pub struct App<'a> {
     output_path: PathBuf,
     status_message: Option<(String, Instant)>,
     clipboard: Box<dyn Clipboard>,
+    color: bool,
 }
 
 impl<'a> App<'a> {
-    fn new(items: Vec<TranslationItem>, output_path: PathBuf) -> Result<App<'a>, Box<dyn Error>> {
+    fn new(items: Vec<TranslationItem>, output_path: PathBuf, color: bool) -> Result<App<'a>, Box<dyn Error>> {
         let translation_store = TranslationStore::new(items);
         let mut tree = App::build_tree(translation_store.all_items.values().cloned().collect());
         App::update_node_translation_status(&mut tree);
@@ -90,6 +93,7 @@ impl<'a> App<'a> {
             output_path,
             status_message: None,
             clipboard,
+            color,
         };
         app.textarea.set_block(
             Block::default()
@@ -247,7 +251,7 @@ impl<'a> App<'a> {
     }
 
     fn render_key_list(&self, f: &mut Frame, area: Rect) {
-        let list_style = if matches!(self.mode, AppMode::Normal) {
+        let list_style = if self.color && matches!(self.mode, AppMode::Normal) {
             Style::default()
                 .bg(Color::Cyan)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED)
@@ -268,18 +272,38 @@ impl<'a> App<'a> {
                         .as_ref()
                         .map_or(false, |t| t.is_translated())
                     {
-                        Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                        if self.color {
+                            Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                        } else {
+                            Span::raw("[✓]")
+                        }
                     } else {
-                        Span::styled("[ ]", Style::default().fg(Color::LightRed))
+                        if self.color {
+                            Span::styled("[ ]", Style::default().fg(Color::LightRed))
+                        } else {
+                            Span::raw("[ ]")
+                        }
                     }
                 } else {
                     // It's a folder
                     if node.fully_translated {
-                        Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                        if self.color {
+                            Span::styled("[✓]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                        } else {
+                            Span::raw("[✓]")
+                        }
                     } else if node.expanded {
-                        Span::styled("[-] ", Style::default().fg(Color::LightBlue))
+                        if self.color {
+                            Span::styled("[-] ", Style::default().fg(Color::LightBlue))
+                        } else {
+                            Span::raw("[-] ")
+                        }
                     } else {
-                        Span::styled("[+] ", Style::default().fg(Color::LightCyan))
+                        if self.color {
+                            Span::styled("[+] ", Style::default().fg(Color::LightCyan))
+                        } else {
+                            Span::raw("[+] ")
+                        }
                     }
                 };
 
@@ -327,7 +351,11 @@ impl<'a> App<'a> {
 
     fn render_status_message(&self, f: &mut Frame, area: Rect) {
         if let Some((msg, _)) = &self.status_message {
-            let footer = Paragraph::new(msg.as_str()).style(Style::default().fg(Color::LightYellow));
+            let footer = if self.color {
+                Paragraph::new(msg.as_str()).style(Style::default().fg(Color::LightYellow))
+            } else {
+                Paragraph::new(msg.as_str()).style(Style::default())
+            };
             f.render_widget(footer, area);
         }
     }
@@ -400,7 +428,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let new_file_name = format!("id_{}", file_name);
         source_path.with_file_name(new_file_name)
     });
-    let mut app = match App::new(items, output_path) {
+    let mut app = match App::new(items, output_path, cli.color) {
         Ok(app) => app,
         Err(e) => {
             restore_terminal(&mut terminal)?;
